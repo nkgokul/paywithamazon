@@ -1,0 +1,66 @@
+<?php
+
+/**
+ * @file
+ * Modules file for Pay With Amazon Integration.
+ * @author Gokul N K <gokul@azrisolutions.com>
+ */
+
+/**
+ * Implements hook_init().
+ */
+
+function pay_with_amazon_init(){
+  $library_path = libraries_get_path('pay_with_amazon');
+  if (empty($library_path)) {
+    $message = t('Pay With Amazon Library is not copied to libraries folder. Rename the library folder provided by Amazon to pay_with_amazon and copy the folder into sites/all/libraries folder');
+    automatr_drupal_set_message($message, 'error');
+  }
+}
+
+/**
+ * Implements hook_menu().
+ */
+function pay_with_amazon_menu(){
+  $items = array();
+  $path = drupal_get_path('module', 'pay_with_amazon');
+
+  $items['admin/commerce/config/payment-methods/pay-with-amazon'] = array(
+    'title' => 'Pay With Amazon',
+    'description' => 'Pay With Amazon Credentials',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('pay_with_amaon_admin_settings_form'),
+    'access arguments' => array('administer payment methods'),
+    'file' => 'pay_with_amazon.admin.inc',
+    'file path' => $path,
+  );
+  return $items;
+}
+
+/**
+ * Implements hook_form_alter().
+ */
+
+function pay_with_amazon_form_alter(&$form, &$form_state, $form_id) {
+  if ($form_id == 'commerce_checkout_form_checkout') {
+    require_once(libraries_get_path('pay_with_amazon') . '/signature/merchant/cart/html/MerchantHTMLCartFactory.php');
+    require_once(libraries_get_path('pay_with_amazon') . '/signature/common/cart/xml/XMLCartFactory.php');
+    require_once(libraries_get_path('pay_with_amazon') . '/signature/common/signature/SignatureCalculator.php');
+
+    $merchantID = variable_get('pwa_merchantid', '');
+    $accessKeyID = variable_get('pwa_access_key_id', '');
+    $secretKeyID = variable_get('pwa_secret_key_id', '');
+
+    $cartFactory = new XMLCartFactory();
+    $calculator = new SignatureCalculator();
+
+    $cart = $cartFactory->getSignatureInput($merchantID, $accessKeyID);
+    $signature = $calculator->calculateRFC2104HMAC($cart, $secretKeyID);
+    $cartHtml = $cartFactory->getCartHTML($merchantID, $accessKeyID, $signature);
+
+    $form['cart_contents']['pay_with_amazon'] = array(
+		  '#markup' => '<div style = "text-align:right;">'  . $cartHtml . '</div>' ,
+		);
+
+  }
+}
